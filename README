@@ -1,2 +1,4 @@
 //This project relies heavily on both Gtkmm3 and nvtt (Nvidia Texture Toolkit)
-//Make sure nvtt is in your path and gtkmm3 is set up for your compiler
+//nvtt will need to be grabbed from the Nvidia Texture Toolkit (https://code.google.com/p/nvidia-texture-tools/)and place the folder src/nvtt into the root project directory. Also make sure gtkmm3 is set up for your compiler
+
+//Current limitations: Needs 32-bit image data, files need to stay small.
