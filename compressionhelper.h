@@ -9,6 +9,8 @@
 #include <gtkmm/grid.h>
 #include <gtkmm/button.h>
 #include <gtkmm/checkbutton.h>
+#include <gtkmm/comboboxtext.h>
+#include <gtkmm/liststore.h>
 #include <gtkmm/alignment.h>
 #include <gtkmm/filechooserdialog.h>
 
@@ -23,7 +25,6 @@
 
 
 
-// static GdkPixbuf * img_import_raw_to_pixbuf( guchar *data);
 class compressionHelper : public Gtk::Window
 {
 
@@ -34,15 +35,31 @@ public:
 
 protected:
   //Signal handlers:
-  // virtual bool on_draw(const Cairo::RefPtr<Cairo::Context>& cr);
   void on_import();
-  void on_export();
   void on_normal_checked();
+  void on_cselect();
   void image_checker(std::string inputFile);
   std::vector<std::string> URTW_parser(std::string realFile);
-  void to_compress(std::string data, int width, int height, bool A, bool CHK_IMAGE);
+  void to_compress(std::string& data, int width, int height, bool A, bool CHK_IMAGE);
 
   bool nm_flag = false;
+  int compress_select = 0;
+
+
+  class ModelColumns : public Gtk::TreeModel::ColumnRecord
+  {
+  public:
+
+    ModelColumns()
+    {
+      add(m_col_id); add(m_col_name);
+    }
+
+    Gtk::TreeModelColumn<int> m_col_id;
+    Gtk::TreeModelColumn<Glib::ustring> m_col_name;
+  };
+
+  ModelColumns m_Columns;
 
   //Member widgets:
   Gtk::ScrolledWindow import_swin, export_swin;
@@ -50,9 +67,11 @@ protected:
   Gtk::Box main_box, top_box, bottom_box, imagein_box, imageout_box, inoutbtn_box;
   Gtk::Grid adv_grid;
 
-  Gtk::Label import_label, export_label, advanced_label;
-  Gtk::Button import_button, export_button;
+  Gtk::Label import_label, advanced_label;
+  Gtk::Button import_button;
   Gtk::CheckButton normal_map_selector;
+  Gtk::ComboBox select_cformat;
+  Glib::RefPtr<Gtk::ListStore> m_refTreeModel;
   Gtk::Alignment text_align;
 
   int in_select;
