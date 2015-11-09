@@ -10,6 +10,7 @@
 
 
 compressionHelper::compressionHelper()
+//constructors for UI
 : import_button("Convert!"),
 normal_map_selector("Normal Map"),
 advanced_label("Advanced"),
@@ -19,6 +20,7 @@ main_box(Gtk::ORIENTATION_VERTICAL)
   set_title("Compression Helper V0.1");
   // set_default_size(640,480);
 
+  //creates basic layout for UI
   add(main_box);
 
   main_box.pack_start(inoutbtn_box, Gtk::PACK_SHRINK, 5);
@@ -66,6 +68,7 @@ compressionHelper::~compressionHelper()
 {
 }
 
+//Check for normal box ticked
 void compressionHelper::on_normal_checked()
 {
   if (nm_flag)
@@ -74,6 +77,7 @@ void compressionHelper::on_normal_checked()
     nm_flag = true;
 }
 
+//Check if compression type has been explicitly stated
 void compressionHelper::on_cselect()
 {
   Gtk::TreeModel::iterator iter = select_cformat.get_active();
@@ -87,8 +91,10 @@ void compressionHelper::on_cselect()
   }
 }
 
+//Function for handling file import. Passes into image handler.
 void compressionHelper::on_import()
 {
+  //Creates a file selection dialog
   Gtk::FileChooserDialog dialog("Please choose a file",
         Gtk::FILE_CHOOSER_ACTION_OPEN);
   dialog.set_transient_for(*this);
@@ -114,6 +120,7 @@ void compressionHelper::on_import()
     case(Gtk::RESPONSE_OK):
     {
       std::cout << "File Selected: " << dialog.get_filename() << std::endl;
+      //forwards to image handler
       compressionHelper::image_checker(dialog.get_filename());
       break;
     }
@@ -128,12 +135,15 @@ void compressionHelper::on_import()
   }
 }
 
+//image handler. Passes into parser, checks for alpha values, and then passes into compressor.
 void compressionHelper::image_checker(std::string inputFile)
 {
   using namespace std;
   std::vector<std::string> raw_data;
   int width;
   int height;
+
+  //checks if it's a URTW file.
   if (inputFile.find(".URTW") != std::string::npos or inputFile.find(".urtw") != std::string::npos)
   {
     raw_data = URTW_parser(inputFile);
@@ -145,29 +155,36 @@ void compressionHelper::image_checker(std::string inputFile)
 
   for (int i=0; i<raw_data.size(); i++)
   {
+    //Checks if TEX2D (limitation of nvtt).
     if (raw_data[i].substr(0,4).compare("TX2D") == 0)
     {
       string marker = raw_data[i].substr(0,4);
       width = atoi(raw_data[i].substr(4,4).c_str());
       height = atoi(raw_data[i].substr(8,4).c_str());
       string raw_image = raw_data[i].substr(12);
-      cout << "marker: " << marker << endl << "width: " << width << endl << "height: " << height << endl;
+      //cout << "marker: " << marker << endl << "width: " << width << endl << "height: " << height << endl;
 
+      //Pulls the alpha channels of every pixel in the image.
       vector<char> textels;
       for (int x=0; x<raw_image.length(); x+=4)
       {
         textels.push_back(raw_image[x+3]);
       }
 
+      //Check for alpha channel change.
       bool A = true;
+      //Check for alpha channel binary.
       bool CHK_IMAGE = true;
-      int numitter = 36;
-      int length_of_textel_list = textels.size();
+      int numitter = textels.size();
 
-      if ( length_of_textel_list < 36)
-      {
-        numitter = length_of_textel_list;
-      }
+      //For only checking against the first 36 pixels (faster, but will probably not give good results)
+      // int numitter = 36;
+      // int length_of_textel_list = textels.size();
+
+      //if ( length_of_textel_list < 36)
+      // {
+      //   numitter = length_of_textel_list;
+      // }
       for (int z=0; z < numitter; z++)
       {
         //check alpha to see if it's binary or changes at all over the whole file.
@@ -186,7 +203,7 @@ void compressionHelper::image_checker(std::string inputFile)
         }
       }
 
-      // for specific channel switching or reversing (as in bmp)
+      // for specific channel switching or reversing (as is necessary for some formats like bmp)
       // for (int a=0; a<raw_image.size(); a+=4)
       // {
       //   char Alpha = raw_image[a];
@@ -204,6 +221,7 @@ void compressionHelper::image_checker(std::string inputFile)
   }
 }
 
+//URTW Image List File Parser.
 std::vector<std::string> compressionHelper::URTW_parser(std::string realFile)
 {
   using namespace std;
@@ -251,20 +269,23 @@ std::vector<std::string> compressionHelper::URTW_parser(std::string realFile)
   }
 }
 
+//Compressor. Uses nvtt for compressing past check for formats.
 void compressionHelper::to_compress(std::string& data, int width, int height, bool A, bool CHK_IMAGE)
 {
-  // using namespace nvtt;
+  //Specifies input options for nvtt.
   nvtt::InputOptions inputOptions;
   inputOptions.setTextureLayout(nvtt::TextureType_2D, width, height, 1);
-  inputOptions.setMipmapData(data.c_str(), width, height);
-  std::cout << "made it" << std::endl;
-  inputOptions.setMipmapGeneration(false, -1);
-  inputOptions.setFormat(nvtt::InputFormat_BGRA_8UB);
+  inputOptions.setMipmapData(data.c_str(), width, height); //This is the actual data input.
+  inputOptions.setMipmapGeneration(false, -1); //Disables mipmap generation.
+  inputOptions.setFormat(nvtt::InputFormat_BGRA_8UB); //Forces BGRA_8UB. There are different versions of the same library and some have partial support, so forcing standard layout.
 
+  //Specifies output options (not much here)
   nvtt::OutputOptions outputOptions;
   outputOptions.setFileName("output.dds");
 
+  //Specifies compression options and format depending on flags.
   nvtt::CompressionOptions compressionOptions;
+  //Checks if explicitly stated.
   if (compress_select != 0)
   {
     if (compress_select == 1)
@@ -280,10 +301,11 @@ void compressionHelper::to_compress(std::string& data, int width, int height, bo
       }
     }
   }
+  //Else goes to our checks against the file.
   else
   {
     if (CHK_IMAGE = true)
-      compressionOptions.setFormat(nvtt::Format_BC3);
+      compressionOptions.setFormat(nvtt::Format_BC1);
     else
     {
       if (A = true)
