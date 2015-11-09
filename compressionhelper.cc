@@ -50,7 +50,7 @@ main_box(Gtk::ORIENTATION_VERTICAL)
 
   row = *(m_refTreeModel->append());
   row[m_Columns.m_col_id] = 3;
-  row[m_Columns.m_col_name] = "DXT3 (BC3)";
+  row[m_Columns.m_col_name] = "DXT5 (BC3)";
 
   select_cformat.pack_start(m_Columns.m_col_id);
   select_cformat.pack_start(m_Columns.m_col_name);
