@@ -2,6 +2,7 @@
 #include "main.cc"
 #include <gdkmm/general.h>
 #include <gdkmm/pixbuf.h>
+#include <gdkmm/pixbufloader.h>
 #include <glibmm/fileutils.h>
 #include <cairomm/context.h>
 #include <iostream>
@@ -10,7 +11,6 @@
 
 
 compressionHelper::compressionHelper()
-//constructors for UI
 : import_button("Convert!"),
 normal_map_selector("Normal Map"),
 advanced_label("Advanced"),
@@ -18,11 +18,15 @@ main_box(Gtk::ORIENTATION_VERTICAL)
 {
   set_border_width(5);
   set_title("Compression Helper V0.1");
-  // set_default_size(640,480);
+  set_default_size(640,480);
 
-  //creates basic layout for UI
   add(main_box);
 
+  main_box.pack_start(top_box);
+  top_box.pack_start(import_swin);
+  import_swin.add(import_frame);
+  import_swin.set_size_request(400, 400);
+  import_frame.add(import_image);
   main_box.pack_start(inoutbtn_box, Gtk::PACK_SHRINK, 5);
   main_box.pack_end(adv_grid);
 
@@ -68,7 +72,6 @@ compressionHelper::~compressionHelper()
 {
 }
 
-//Check for normal box ticked
 void compressionHelper::on_normal_checked()
 {
   if (nm_flag)
@@ -77,7 +80,6 @@ void compressionHelper::on_normal_checked()
     nm_flag = true;
 }
 
-//Check if compression type has been explicitly stated
 void compressionHelper::on_cselect()
 {
   Gtk::TreeModel::iterator iter = select_cformat.get_active();
@@ -86,15 +88,13 @@ void compressionHelper::on_cselect()
     Gtk::TreeModel::Row row = *iter;
     if(row)
     {
-      int compress_select = row[m_Columns.m_col_id];
+      compress_select = row[m_Columns.m_col_id];
     }
   }
 }
 
-//Function for handling file import. Passes into image handler.
 void compressionHelper::on_import()
 {
-  //Creates a file selection dialog
   Gtk::FileChooserDialog dialog("Please choose a file",
         Gtk::FILE_CHOOSER_ACTION_OPEN);
   dialog.set_transient_for(*this);
@@ -120,8 +120,8 @@ void compressionHelper::on_import()
     case(Gtk::RESPONSE_OK):
     {
       std::cout << "File Selected: " << dialog.get_filename() << std::endl;
-      //forwards to image handler
-      compressionHelper::image_checker(dialog.get_filename());
+      Glib::RefPtr<Gdk::Pixbuf> new_image = compressionHelper::image_checker(dialog.get_filename());
+      import_image.set(new_image);
       break;
     }
     case(Gtk::RESPONSE_CANCEL):
@@ -133,202 +133,179 @@ void compressionHelper::on_import()
       break;
     }
   }
+  show_all_children();
 }
 
-//image handler. Passes into parser, checks for alpha values, and then passes into compressor.
-void compressionHelper::image_checker(std::string inputFile)
+Glib::RefPtr<Gdk::Pixbuf> compressionHelper::image_checker(std::string inputFile)
 {
-  using namespace std;
-  std::vector<std::string> raw_data;
+  Glib::RefPtr<Gdk::Pixbuf> new_image;
+  Glib::RefPtr<Gdk::Pixbuf> scaled_image;
   int width;
   int height;
-
-  //checks if it's a URTW file.
   if (inputFile.find(".URTW") != std::string::npos or inputFile.find(".urtw") != std::string::npos)
   {
-    raw_data = URTW_parser(inputFile);
+    std::vector<guint8> raw_data = URTW_parser(inputFile);
+    for (int i=0; i<mapPos.size();i++)
+    {
+
+      if (raw_data[mapPos[i]] == mapTypes[0] and raw_data[mapPos[i]+1] == mapTypes[1] and raw_data[mapPos[i]+2] == mapTypes[2] and raw_data[mapPos[i]+3] == mapTypes[3])
+      {
+
+        std::stringstream s; //Grabs the Width from the header.
+        for (int j=0; j!=4; j++)
+        {
+          s << raw_data[mapPos[i]+4+j];
+        }
+        width = std::stoi(s.str());
+
+        std::stringstream s2; //Grabs the Height from the header.
+        for (int k=0; k!=4; k++)
+        {
+          s2 << raw_data[mapPos[i]+8+k];
+        }
+        height = std::stoi(s2.str());
+
+        std::stringstream s3; //Grabs the alpha flag from the header.
+        s3 << raw_data[mapPos[i]+12];
+        int alpha_check = std::stoi(s3.str());
+
+        int bpp; //Base Bits Per Pixel on if there is an alpha channel.
+        bool alpha_not_binary = false;
+        if (alpha_check == 1)
+        {
+          bpp = 4;
+          for (int l=13; l<raw_data.size(); l+=4)
+          {
+            if (raw_data[l+3] != 0x00 or raw_data[l+3] != 0xff)
+            {
+              alpha_not_binary = true;
+            }
+          }
+        }
+        else
+          bpp = 3;
+
+        std::cout << "width= " << width << std::endl << "height= " << height << std::endl << "alpha= " << alpha_check << std::endl << "alpha_not_binary= " << alpha_not_binary << std::endl;
+
+        new_image = Gdk::Pixbuf::create_from_data(&raw_data[mapPos[i]+14], Gdk::Colorspace::COLORSPACE_RGB, alpha_check, 8, width, height, width*bpp);
+        scaled_image = new_image->scale_simple(512, 512, Gdk::INTERP_BILINEAR);
+
+        int ck;
+        if (i != mapPos.size())
+        {
+          ck = mapPos[i+1];
+        }
+        else
+        {
+          ck = mapPos.size();
+        }
+        for (int b = mapPos[i]+14; b != ck; b++) //NEEDS TO GO OVER EACH PIXEL FOR EACH MAP
+        {
+          guint8 ch1 = raw_data[b]; //R
+          guint8 ch2 = raw_data[b+1]; //G
+          guint8 ch3 = raw_data[b+2]; //B
+          guint8 ch4 = raw_data[b+3]; //A
+          raw_data[b] = ch3;
+          raw_data[b+1] = ch2;
+          raw_data[b+2] = ch1;
+          raw_data[b+3] = ch4;
+        }
+
+        to_compress(raw_data, width, height, alpha_check, alpha_not_binary);
+      }
+    }
   }
   else
   {
-    cout << "Not a URTW file! Support for other types of images will be added later, but for now please use a URTW file.";
+    std::cout << "Not a URTW file! Support for other types of images will be added later, but for now please use a URTW file." << std::endl;
+  }
+  return scaled_image;
+}
+
+std::vector<guint8> compressionHelper::URTW_parser(std::string realFile)
+{
+  std::ifstream inFile(realFile, std::ios::binary); //Imports the file.
+  std::vector<guint8> buffer((std::istreambuf_iterator<char>(inFile)), //Adds everything to a vector.
+                        (std::istreambuf_iterator<char>()));
+
+  //Finds our maps for us by searching the vector for the appropriate tags.
+  for (int i=0;i<buffer.size();i++) //For every entry in the buffer
+  {
+    for (int j=0;j<mapTypes.size();j+=4) //For every entry in the mapTypes list
+    {
+      if (buffer[i] == mapTypes[j] and buffer[i+1] == mapTypes[j+1] and buffer[i+2] == mapTypes[j+2] and buffer[i+3] == mapTypes[j+3]) //Compare the buffer 4 chars at a time to every set of 4 in the mapTypes list, pushing back the position if there is a match.
+      {
+        mapPos.push_back(i);
+      }
+    }
   }
 
-  for (int i=0; i<raw_data.size(); i++)
+  for (int a=0;a<mapPos.size(); a++)
+    std::cout << mapPos[a] << std::endl;
+  return buffer;
+}
+
+void compressionHelper::to_compress(std::vector<guint8> data, int width, int height, int A, bool CHK_IMAGE)
+{
+  for (int i=0; i<mapPos.size(); i++)
   {
-    //Checks if TEX2D (limitation of nvtt).
-    if (raw_data[i].substr(0,4).compare("TX2D") == 0)
+    nvtt::InputOptions inputOptions;
+    inputOptions.setTextureLayout(nvtt::TextureType_2D, width, height, 1);
+    inputOptions.setMipmapData(&data[mapPos[i]+14], width, height);
+    inputOptions.setMipmapGeneration(false, -1);
+
+    std::string filename = "output" + std::to_string(i) + ".dds";
+    nvtt::OutputOptions outputOptions;
+    outputOptions.setFileName(filename.c_str());
+
+    nvtt::CompressionOptions compressionOptions;
+    if (compress_select != 0)
     {
-      string marker = raw_data[i].substr(0,4);
-      width = atoi(raw_data[i].substr(4,4).c_str());
-      height = atoi(raw_data[i].substr(8,4).c_str());
-      string raw_image = raw_data[i].substr(12);
-      //cout << "marker: " << marker << endl << "width: " << width << endl << "height: " << height << endl;
-
-      //Pulls the alpha channels of every pixel in the image.
-      vector<char> textels;
-      for (int x=0; x<raw_image.length(); x+=4)
+      if (compress_select == 1)
+        compressionOptions.setFormat(nvtt::Format_BC1);
+      else
       {
-        textels.push_back(raw_image[x+3]);
-      }
-
-      //Check for alpha channel change.
-      bool A = true;
-      //Check for alpha channel binary.
-      bool CHK_IMAGE = true;
-      int numitter = textels.size();
-
-      //For only checking against the first 36 pixels (faster, but will probably not give good results)
-      // int numitter = 36;
-      // int length_of_textel_list = textels.size();
-
-      //if ( length_of_textel_list < 36)
-      // {
-      //   numitter = length_of_textel_list;
-      // }
-      for (int z=0; z < numitter; z++)
-      {
-        //check alpha to see if it's binary or changes at all over the whole file.
-        for (unsigned int b=0; b<numitter; b++)
+        if (compress_select == 2)
+          compressionOptions.setFormat(nvtt::Format_BC1a);
+        else
         {
-          if (textels[z] != textels[z+1])
+          if (compress_select == 3)
+            compressionOptions.setFormat(nvtt::Format_BC3);
+        }
+      }
+    }
+    else
+    {
+      if (CHK_IMAGE == 0)
+      {
+        std::cout << "CHK_IMAGE=0" << std::endl;
+        compressionOptions.setFormat(nvtt::Format_BC1);
+      }
+      else
+      {
+        if (A == true)
+        {
+          std::cout << "A=1" << std::endl;
+          inputOptions.setAlphaMode(nvtt::AlphaMode_Transparency);
+          compressionOptions.setFormat(nvtt::Format_BC1a);
+        }
+        else
+        {
+          if (nm_flag == true)
           {
-            A = false;
+            std::cout << "nm_flag=true" << std::endl;
+            compressionOptions.setFormat(nvtt::Format_BC3n);
           }
           else
           {
-            // string input = textels[z].substr(3,1);
-            if (textels[z] != static_cast<char>(0x00) and textels[z] != static_cast<char>(0xff))
-              CHK_IMAGE = false;
+            std::cout << "A=1" << std::endl;
+            compressionOptions.setFormat(nvtt::Format_BC3);
           }
         }
       }
-
-      // for specific channel switching or reversing (as is necessary for some formats like bmp)
-      // for (int a=0; a<raw_image.size(); a+=4)
-      // {
-      //   char Alpha = raw_image[a];
-      //   char R = raw_image[a+1];
-      //   char G = raw_image[a+2];
-      //   char B = raw_image[a+3];
-      //   raw_image[a] = B;
-      //   raw_image[a+1] = G;
-      //   raw_image[a+2] = R;
-      //   raw_image[a+3] = Alpha;
-      // }
-      // std::reverse(raw_image.begin(), raw_image.end());
-      to_compress(raw_image, width, height, A, CHK_IMAGE);
     }
+    nvtt::Compressor compressor;
+    compressor.process(inputOptions, compressionOptions, outputOptions);
+    std::cout << "DONE" << std::endl;
   }
 }
-
-//URTW Image List File Parser.
-std::vector<std::string> compressionHelper::URTW_parser(std::string realFile)
-{
-  using namespace std;
-  string buffer;
-  ifstream inFile(realFile.c_str());
-  vector<string> inRaw;
-  vector<int> mapPos;
-
-  vector<string> mapTypes; //For future handling of stuff like cubemaps.
-  mapTypes.push_back("TX2D");
-
-  if (inFile.is_open())
-  {
-    while(getline(inFile, buffer))
-    {
-      //Checks the input for markers and adds their positions to a vector.
-      for (int i=0; i<mapTypes.size(); i++)
-      {
-        std::size_t pos = buffer.find(mapTypes[i]);
-        if (pos!=std::string::npos)
-        {
-          mapPos.push_back(pos);
-        }
-      }
-
-      //Splits the map information into individual strings.
-      for (int i=0; i<mapPos.size(); i++)
-      {
-        if (i+1 <= mapPos.size())
-        {
-          string mapUnique = buffer.substr(mapPos[i], mapPos[i+1] - mapPos[i]);
-          inRaw.push_back(mapUnique);
-        }
-        else
-        {
-          string mapUnique = buffer.substr(mapPos[i], buffer.size() - mapPos[i]);
-          inRaw.push_back(mapUnique);
-        }
-      }
-
-      inFile.close();
-    }
-    return inRaw;
-
-  }
-}
-
-//Compressor. Uses nvtt for compressing past check for formats.
-void compressionHelper::to_compress(std::string& data, int width, int height, bool A, bool CHK_IMAGE)
-{
-  //Specifies input options for nvtt.
-  nvtt::InputOptions inputOptions;
-  inputOptions.setTextureLayout(nvtt::TextureType_2D, width, height, 1);
-  inputOptions.setMipmapData(data.c_str(), width, height); //This is the actual data input.
-  inputOptions.setMipmapGeneration(false, -1); //Disables mipmap generation.
-  inputOptions.setFormat(nvtt::InputFormat_BGRA_8UB); //Forces BGRA_8UB. There are different versions of the same library and some have partial support, so forcing standard layout.
-
-  //Specifies output options (not much here)
-  nvtt::OutputOptions outputOptions;
-  outputOptions.setFileName("output.dds");
-
-  //Specifies compression options and format depending on flags.
-  nvtt::CompressionOptions compressionOptions;
-  //Checks if explicitly stated.
-  if (compress_select != 0)
-  {
-    if (compress_select == 1)
-      compressionOptions.setFormat(nvtt::Format_BC1);
-    else
-    {
-      if (compress_select == 2)
-        compressionOptions.setFormat(nvtt::Format_BC1a);
-      else
-      {
-        if (compress_select == 3)
-          compressionOptions.setFormat(nvtt::Format_BC3);
-      }
-    }
-  }
-  //Else goes to our checks against the file.
-  else
-  {
-    if (CHK_IMAGE = true)
-      compressionOptions.setFormat(nvtt::Format_BC1);
-    else
-    {
-      if (A = true)
-      {
-        inputOptions.setAlphaMode(nvtt::AlphaMode_Transparency);
-        compressionOptions.setFormat(nvtt::Format_BC1a);
-      }
-      else
-      {
-        if (nm_flag)
-          compressionOptions.setFormat(nvtt::Format_BC3n);
-        else
-          compressionOptions.setFormat(nvtt::Format_BC3);
-      }
-    }
-  }
-  nvtt::Compressor compressor;
-  compressor.process(inputOptions, compressionOptions, outputOptions);
-  std::cout << "DONE" << std::endl;
-}
-
-
-//STILL NEEDS TO BE DONE
-//   ADD IN INFO IN UI ABOUT SOME DXT VS OTHERS AND
-          //NEEDS FIX FOR LARGER FILES
-          //POSSIBLY ADD IN SUPPORT FOR OTHER FORMATS
