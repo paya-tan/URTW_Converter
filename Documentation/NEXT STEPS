@@ -1,0 +1,7 @@
+NEXT STEPS
+
+1. Check support for multiple images more.
+2. Add in selection for display maps as a viewable list for all images included in the original file.
+3. Move image checker and URTW parser to its own file.
+4. Finish GIMP exporter.
+4. Add support for crnlib and perhaps others.
