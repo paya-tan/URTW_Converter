@@ -23,6 +23,7 @@
 
 #include <nvtt/nvtt.h>
 
+// #include <inc/crnlib.h>
 
 
 class compressionHelper : public Gtk::Window
@@ -38,13 +39,17 @@ protected:
   void on_import();
   void on_normal_checked();
   void on_cselect();
-  void image_checker(std::string inputFile);
-  std::vector<std::string> URTW_parser(std::string realFile);
-  void to_compress(std::string& data, int width, int height, bool A, bool CHK_IMAGE);
+  Glib::RefPtr<Gdk::Pixbuf> image_checker(std::string inputFile);
+  std::vector<guint8> URTW_parser(std::string realFile);
+  void to_compress(std::vector<guint8> data, int width, int height, int A, bool CHK_IMAGE);
 
   bool nm_flag = false;
   int compress_select = 0;
 
+  std::vector<int> mapPos;
+  std::vector<unsigned char> mapTypes{0x54, 0x58, 0x32, 0x44}; //Every 4 chars == 1 map type. Example: 5458 3244 == TX2D.
+
+  std::vector<unsigned char> images;
 
   class ModelColumns : public Gtk::TreeModel::ColumnRecord
   {
@@ -73,6 +78,8 @@ protected:
   Gtk::ComboBox select_cformat;
   Glib::RefPtr<Gtk::ListStore> m_refTreeModel;
   Gtk::Alignment text_align;
+
+  Gtk::Image import_image, export_image;
 
   int in_select;
 
