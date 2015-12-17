@@ -23,8 +23,6 @@
 
 #include <nvtt/nvtt.h>
 
-// #include <inc/crnlib.h>
-
 
 class compressionHelper : public Gtk::Window
 {
