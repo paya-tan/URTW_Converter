@@ -4,7 +4,6 @@
 #include <gdkmm/pixbuf.h>
 #include <gdkmm/pixbufloader.h>
 #include <glibmm/fileutils.h>
-#include <cairomm/context.h>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -119,7 +118,6 @@ void compressionHelper::on_import()
   {
     case(Gtk::RESPONSE_OK):
     {
-      std::cout << "File Selected: " << dialog.get_filename() << std::endl;
       Glib::RefPtr<Gdk::Pixbuf> new_image = compressionHelper::image_checker(dialog.get_filename());
       import_image.set(new_image);
       break;
@@ -169,7 +167,7 @@ Glib::RefPtr<Gdk::Pixbuf> compressionHelper::image_checker(std::string inputFile
         s3 << raw_data[mapPos[i]+12];
         int alpha_check = std::stoi(s3.str());
 
-        int bpp; //Base Bits Per Pixel on if there is an alpha channel.
+        int bpp; //Base Bits Per Pixel; on if there is an alpha channel.
         bool alpha_not_binary = false;
         if (alpha_check == 1)
         {
@@ -184,8 +182,6 @@ Glib::RefPtr<Gdk::Pixbuf> compressionHelper::image_checker(std::string inputFile
         }
         else
           bpp = 3;
-
-        std::cout << "width= " << width << std::endl << "height= " << height << std::endl << "alpha= " << alpha_check << std::endl << "alpha_not_binary= " << alpha_not_binary << std::endl;
 
         new_image = Gdk::Pixbuf::create_from_data(&raw_data[mapPos[i]+14], Gdk::Colorspace::COLORSPACE_RGB, alpha_check, 8, width, height, width*bpp);
         scaled_image = new_image->scale_simple(512, 512, Gdk::INTERP_BILINEAR);
@@ -240,8 +236,6 @@ std::vector<guint8> compressionHelper::URTW_parser(std::string realFile)
     }
   }
 
-  for (int a=0;a<mapPos.size(); a++)
-    std::cout << mapPos[a] << std::endl;
   return buffer;
 }
 
@@ -278,14 +272,12 @@ void compressionHelper::to_compress(std::vector<guint8> data, int width, int hei
     {
       if (CHK_IMAGE == 0)
       {
-        std::cout << "CHK_IMAGE=0" << std::endl;
         compressionOptions.setFormat(nvtt::Format_BC1);
       }
       else
       {
         if (A == true)
         {
-          std::cout << "A=1" << std::endl;
           inputOptions.setAlphaMode(nvtt::AlphaMode_Transparency);
           compressionOptions.setFormat(nvtt::Format_BC1a);
         }
@@ -293,12 +285,10 @@ void compressionHelper::to_compress(std::vector<guint8> data, int width, int hei
         {
           if (nm_flag == true)
           {
-            std::cout << "nm_flag=true" << std::endl;
             compressionOptions.setFormat(nvtt::Format_BC3n);
           }
           else
           {
-            std::cout << "A=1" << std::endl;
             compressionOptions.setFormat(nvtt::Format_BC3);
           }
         }
@@ -306,6 +296,5 @@ void compressionHelper::to_compress(std::vector<guint8> data, int width, int hei
     }
     nvtt::Compressor compressor;
     compressor.process(inputOptions, compressionOptions, outputOptions);
-    std::cout << "DONE" << std::endl;
   }
 }
